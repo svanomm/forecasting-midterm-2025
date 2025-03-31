@@ -59,7 +59,7 @@ data |> gg_subseries(y=Rail_avg) +
        subtitle = "Seasonal Subseries Plot",
        x="",
        caption = "Source: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards.")
-ggsave(here("./analysis/output/graphs/Seasonality Plot.png"), width = 10, height = 6)
+ggsave(here("./analysis/output/graphs/Seasonality Plot.png"), width = 8, height = 5)
 
 # Split the data 
 train <- data |> slice(1:48)
@@ -84,7 +84,7 @@ ggplot(data, aes(x = Date)) +
     panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
   ) +
   guides(colour = guide_legend(title = ""))
-ggsave(here("./analysis/output/graphs/train_test.png"), width = 10, height = 6)
+ggsave(here("./analysis/output/graphs/train_test.png"), width = 8, height = 5)
 
 
 # Plot Rail vs gas price
@@ -106,7 +106,7 @@ ggplot(data, aes(x = Date)) +
     legend.position = "bottom",
     panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
   )
-ggsave(here("./analysis/output/graphs/rides_vs_gas.png"), width = 10, height = 6)
+ggsave(here("./analysis/output/graphs/rides_vs_gas.png"), width = 8, height = 5)
 
 
 STL_decomp <- data |> 
@@ -118,7 +118,7 @@ STL_decomp |> components() |>
        y="Average Daily Boardings (000s)",
        x="",
        caption = "Source: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards.")
-ggsave(here("./analysis/output/graphs/STL_Decomp.png"), width = 10, height = 6)
+ggsave(here("./analysis/output/graphs/STL_Decomp.png"), width = 8, height = 5)
 
 # For forecasting, we need future values of gas prices.
 # Use ARIMA to forecast gas prices
@@ -210,7 +210,7 @@ ggplot(residuals, aes(x = Date)) +
     panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
   ) +
   guides(colour = guide_legend(title = ""))
-ggsave(here("./analysis/output/graphs/residuals.png"), width = 10, height = 6)
+ggsave(here("./analysis/output/graphs/residuals.png"), width = 8, height = 5)
   
 
 my_models |> select(ensemble) |> gg_tsresiduals() + 
@@ -231,7 +231,7 @@ my_forecasts |>
     x="",
     caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n U.S. Energy Information Administration, Petroleum & Other Liquids.") +
   guides(colour = guide_legend(title = ""))
-ggsave(here("./analysis/output/graphs/forecasts.png"), width = 10, height = 6)
+ggsave(here("./analysis/output/graphs/forecasts.png"), width = 8, height = 5)
 
 
 # IS and OOS accuracy metrics
