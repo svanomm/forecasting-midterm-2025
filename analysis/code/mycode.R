@@ -112,36 +112,35 @@ STL_decomp |> components() |>
        y="Average Daily Boardings (000s)",
        x="",
        caption = "Source: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards.")
-ggsave(here("Job Openings STL Decomp.png"), width = 10, height = 6)
+ggsave(here("./analysis/output/graphs/STL_Decomp.png"), width = 10, height = 6)
 
 # For forecasting, we need future values of gas prices.
-# Use mean from previous year
-d <- train |> filter(Month >= yearmonth("2014 Jan")) 
-summary(d$employ_rate) # mean of 64.7
-
+# Use ARIMA to forecast gas prices
+gas_model <- train |>
+  model(ARIMA(gas_price ~ pdq(1, 1, 1) + PDQ(1, 1, 1))) |>
+  forecast(new_data = test)
+# Update the testing data with the predicted gas prices
 test <- test |> mutate(
-  employ_rate = 64.7
+  gas_price = gas_model$.mean
 )
 
+knot1 <- yearmonth("2021 Jan")
+knot2 <- yearmonth("2022 Jan")
+knot3 <- yearmonth("2023 Jan")
+knot4 <- yearmonth("2024 Jan")
 
 # Fit models
 my_models <- train |>
   model(
     snaive = SNAIVE(Rail_avg),
-    ets    = ETS(Rail_avg),
-    stl_ets = decomposition_model(
-      STL(Rail_avg),
-      ETS(season_adjust ~ trend("Ad") + season("N")),
-      SNAIVE(season_year)
-    ),
-    reg_control = TSLM(Rail_avg ~ gas_price + season() + trend()),
-    arimax = ARIMA(Rail_avg ~ gas_price),
-    stl_arimax = decomposition_model(
-      STL(Rail_avg),
-      ARIMA(season_adjust ~ gas_price),
-      SNAIVE(season_year)
-    )
-  )
+    ets    = ETS(Rail_avg ~ trend("Ad") + season("A")),
+    reg_control = TSLM(Rail_avg ~ gas_price + season() + trend(knots = c(knot1,knot2,knot3,knot4))),
+    arimax = ARIMA(Rail_avg ~ gas_price)
+    ) |>
+  mutate(ensemble = (snaive+ets+reg_control+arimax)/4)
+
+my_forecasts <- my_models |>
+  forecast(new_data = test)
 
 my_models |> select(snaive) |> gg_tsresiduals() + 
   labs(title = "Residuals of Time Series Linear Model", 
@@ -159,8 +158,7 @@ my_models |> select(reg_control) |> report()
 my_models |> select(arima_simple) |> tidy()
 my_models |> select(arima_control) |> tidy()
 
-my_forecasts <- my_models |>
-  forecast(new_data = test)
+
 
 # Plot the model predictions on the training data
 my_models |> fitted() |> autoplot()  + 
@@ -179,7 +177,7 @@ my_forecasts |>
     caption = "Notes: Models are trained on data from Jan. 1995 to Dec. 2014.\nSource: fpp3 'nsw_offences' data, Australian Bureau of Statistics."
   ) +
   guides(colour = guide_legend(title = "Forecast"))
-ggsave(here("Forecasts.png"), width = 10, height = 6)
+ggsave(here("./analysis/output/graphs/forecasts.png"), width = 10, height = 6)
 
 
 # IS and OOS accuracy metrics
