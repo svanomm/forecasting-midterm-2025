@@ -4,25 +4,16 @@ library(stargazer)
 library(dplyr)
 library(readr)
 library(lubridate)
+library(readxl)
 
 here()
 
-rides     <- read_csv(here("./data/Daily Ridership - Data View_data.csv"))
-gas_prices <- read_csv(here("./data/EMM_EPMR_PTE_R1Y_DPGm.xls"))
+rides      <- read_csv(here("./data/Daily Ridership - Data View_data.csv"))
+gas_prices <- read_excel(here("./data/EMM_EPMR_PTE_R1Y_DPGm.xls"), sheet = "Data 1", range = "A3:B386")
 
-# Read each CSV file into a list of data frames
-data_list <- lapply(data_files, read_csv)
+# reshape rides data wide by Mode
+rides_wide <- rides %>%
+  pivot_wider(names_from = Mode, values_from = "Entries Or Boardings")
 
-# Define a function to clean each data frame
-clean_data <- function(df) {
-  df %>%
-    mutate(
-      # Convert date column to Date type (assuming the column is named 'date')
-      date = as.Date(date, format = "%Y-%m-%d"),
-      # Handle missing values (e.g., replace with NA)
-      across(everything(), ~ ifelse(. == "", NA, .))
-    )
-}
-
-# Clean each data frame in the list
-cleaned_data_list <- lapply(data_list, clean_data)
+# Convert the datetime column to a date
+rides_wide$Date <- as_date(rides_wide$Date)
