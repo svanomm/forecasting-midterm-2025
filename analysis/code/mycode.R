@@ -44,24 +44,11 @@ data <- merge(rides_monthly, gas_prices, by = "Date")
 data$Date <- yearmonth(data$Date)
 
 # Convert data to tsibble
-data_ts <- as_tsibble(data, index = Date)
-
-# line plot of Rail and gas price by date
-ggplot(data_ts, aes(x = Date)) +
-  geom_line(aes(y = Rail_avg, color = "Rail")) +
-  geom_line(aes(y = gas_price, color = "Gas Price")) +
-  scale_y_continuous(
-    name = "Entries or Boardings",
-    # Secondary axis transformation
-    sec.axis = sec_axis(~./75, name = "Gas Price ($)")
-  ) +
-  labs(title = "Daily Ridership by Mode",
-       x = "Date",
-       y = "Entries or Boardings") +
-  theme_minimal()
+data <- as_tsibble(data, index = Date)
 
 
-ggplot(data_ts, aes(x = Date)) +
+# Plot Rail vs gas price
+ggplot(data, aes(x = Date)) +
   # Plot Rail_avg on primary scale
   geom_line(aes(y = Rail_avg, color = "Rail")) +
   # Scale up gas_price values for plotting on the primary scale
@@ -71,11 +58,108 @@ ggplot(data_ts, aes(x = Date)) +
     # Transform back to original gas price values for the secondary axis labels
     sec.axis = sec_axis(~ (.+ 200) / 100 , name = "Price ($/gal)")
   ) +
-  labs(title = "Average Daily Boardings vs Gasoline Price",
-       x = "") +
+  labs(title = "Average Daily Rail Boardings vs Gasoline Price",
+       x = "",
+       caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n U.S. Energy Information Administration, Petroleum & Other Liquids.") +
   theme_minimal() +
   theme(
-    legend.position = "bottom"
+    legend.position = "bottom",
+    panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
   )
-  
-  
+ggsave(here("./analysis/output/graphs/rides_vs_gas.png"), width = 10, height = 6)
+
+
+# Seasonality graph
+data |> gg_subseries(y=Rail_avg) +
+  labs(title = "Average Daily Rail Boardings",
+       y="Average Daily Boardings (000s)",
+       subtitle = "Seasonal Subseries Plot",
+       x="",
+       caption = "Source: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards.")
+ggsave(here("./analysis/output/graphs/Seasonality Plot.png"), width = 10, height = 6)
+
+# Split the data 
+train <- data |> slice(1:48)
+test  <- data |> slice(49:60)
+
+STL_decomp <- data |> 
+  model(stl = STL(Rail_avg))
+
+STL_decomp |> components() |>
+  autoplot() +
+  labs(title = "STL decomposition: Average Daily Rail Boardings",
+       y="Average Daily Boardings (000s)",
+       x="",
+       caption = "Source: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards.")
+ggsave(here("Job Openings STL Decomp.png"), width = 10, height = 6)
+
+# For forecasting, we need future values of employment rate.
+# Use mean from previous year
+d <- train |> filter(Month >= yearmonth("2014 Jan")) 
+summary(d$employ_rate) # mean of 64.7
+
+test <- test |> mutate(
+  employ_rate = 64.7
+)
+
+
+# Fit models
+knot1 <- yearmonth("2000 Jan")
+knot2 <- yearmonth("2005 Jan")
+knot3 <- yearmonth("2010 Jan")
+
+my_models <- train |>
+  model(
+    reg_control  =  TSLM(count_thefts ~ employ_rate + season() + trend(knots=c(knot1, knot2, knot3))),
+    arima_simple = ARIMA(count_thefts, ic = "bic"),
+    arima_control= ARIMA(count_thefts ~ employ_rate, ic = "bic"),
+  )
+
+my_models |> select(reg_control) |> gg_tsresiduals() + 
+  labs(title = "Residuals of Time Series Linear Model", 
+       x="")
+#ggsave(here("Model 1 Residuals.png"), width = 10, height = 6)
+
+my_models |> select(arima_simple) |> gg_tsresiduals() + 
+  labs(title = "Residuals of ARIMA Model", 
+       x="")
+#ggsave(here("Model 2 Residuals.png"), width = 10, height = 6)
+
+my_models |> select(arima_control) |> gg_tsresiduals()
+
+my_models |> select(reg_control) |> report()
+my_models |> select(arima_simple) |> tidy()
+my_models |> select(arima_control) |> tidy()
+
+my_forecasts <- my_models |>
+  forecast(new_data = test)
+
+# Plot the model predictions on the training data
+my_models |> fitted() |> autoplot()  + 
+  theme(legend.position="bottom") +
+  facet_grid(vars(.model), scales = "free_y") 
+
+
+# Plot the model predictions on the testing data
+my_forecasts |>
+  autoplot(test, level = NULL) +
+  theme(legend.position = "bottom") +
+  labs(
+    y = "Thousands",
+    title = "Forecasts of Australian Thefts",
+    x="",
+    caption = "Notes: Models are trained on data from Jan. 1995 to Dec. 2014.\nSource: fpp3 'nsw_offences' data, Australian Bureau of Statistics."
+  ) +
+  guides(colour = guide_legend(title = "Forecast"))
+ggsave(here("Forecasts.png"), width = 10, height = 6)
+
+
+# IS and OOS accuracy metrics
+is_accuracy  <- my_models |> accuracy()
+oos_accuracy <- accuracy(my_forecasts, test)
+combined_accuracy <- rbind(is_accuracy, oos_accuracy) |> arrange(desc(.type), RMSE)
+
+d <- as.matrix(mutate_if(
+  combined_accuracy, is.numeric, ~round(., 2)
+))
+stargazer(d, out = here("Accuracy Table.txt"), type = "text")
