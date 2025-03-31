@@ -40,12 +40,17 @@ gas_prices$Date <- as.Date(gas_prices$Date)
 gas_prices <- gas_prices |> rename(gas_price = `Central Atlantic (PADD 1B) Regular All Formulations Retail Gasoline Prices (Dollars per Gallon)`)
 
 # Merge gas prices with rides data
-data <- merge(rides_monthly, gas_prices, by = "Date")
+data <- left_join(rides_monthly, gas_prices, by = "Date")
 data$Date <- yearmonth(data$Date)
+
+# add March gas price data using https://www.eia.gov/dnav/pet/pet_pri_gnd_dcus_r1y_w.htm
+# March weekly prices: 3.118	3.071	3.054	3.075. Average: 3.0795
+data <- data |> mutate(
+  gas_price = ifelse(Date == yearmonth("2025 Mar"), 3.0795, gas_price)
+)
 
 # Convert data to tsibble
 data <- as_tsibble(data, index = Date)
-
 
 # Seasonality graph
 data |> gg_subseries(y=Rail_avg) +
@@ -77,7 +82,8 @@ ggplot(data, aes(x = Date)) +
   theme(
     legend.position = "bottom",
     panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
-  )
+  ) +
+  guides(colour = guide_legend(title = ""))
 ggsave(here("./analysis/output/graphs/train_test.png"), width = 10, height = 6)
 
 
@@ -129,6 +135,14 @@ knot2 <- yearmonth("2022 Jan")
 knot3 <- yearmonth("2023 Jan")
 knot4 <- yearmonth("2024 Jan")
 
+ train |>
+  model(
+    snaive = SNAIVE(Rail_avg),
+    ets    = ETS(Rail_avg ~ trend("Ad") + season("A")),
+    reg_control = TSLM(Rail_avg ~ gas_price + season() + trend(knots = c(knot1,knot2,knot3,knot4))),
+    arimax = ARIMA(Rail_avg ~ gas_price)
+  ) |> glance()
+
 # Fit models
 my_models <- train |>
   model(
@@ -137,46 +151,86 @@ my_models <- train |>
     reg_control = TSLM(Rail_avg ~ gas_price + season() + trend(knots = c(knot1,knot2,knot3,knot4))),
     arimax = ARIMA(Rail_avg ~ gas_price)
     ) |>
-  mutate(ensemble = (snaive+ets+reg_control+arimax)/4)
+  mutate(ensemble = (ets+reg_control+arimax)/3)
 
 my_forecasts <- my_models |>
   forecast(new_data = test)
 
-my_models |> select(snaive) |> gg_tsresiduals() + 
-  labs(title = "Residuals of Time Series Linear Model", 
+# Create a dataset with the residuals for my models
+r_snaive      <- my_models |> select(snaive     ) |> residuals() |> select(Date, .resid) |> rename(snaive      = .resid)
+r_ets         <- my_models |> select(ets        ) |> residuals() |> select(Date, .resid) |> rename(ets         = .resid)
+r_reg_control <- my_models |> select(reg_control) |> residuals() |> select(Date, .resid) |> rename(reg_control = .resid)
+r_arimax      <- my_models |> select(arimax     ) |> residuals() |> select(Date, .resid) |> rename(arimax      = .resid)
+r_ensemble    <- my_models |> select(ensemble   ) |> residuals() |> select(Date, .resid) |> rename(ensemble    = .resid)
+
+r_train <- r_snaive |> 
+  inner_join(r_ets, by = "Date") |>
+  inner_join(r_reg_control, by = "Date") |>
+  inner_join(r_arimax, by = "Date") |>
+  inner_join(r_ensemble, by = "Date")
+
+r_snaive      <- as.data.frame(my_forecasts) |> filter(.model == "snaive"     ) |> select(Date, .mean) |> rename(snaive = .mean)
+r_ets         <- as.data.frame(my_forecasts) |> filter(.model == "ets"        ) |> select(Date, .mean) |> rename(ets = .mean)
+r_reg_control <- as.data.frame(my_forecasts) |> filter(.model == "reg_control") |> select(Date, .mean) |> rename(reg_control = .mean)
+r_arimax      <- as.data.frame(my_forecasts) |> filter(.model == "arimax"     ) |> select(Date, .mean) |> rename(arimax = .mean)
+r_ensemble    <- as.data.frame(my_forecasts) |> filter(.model == "ensemble"   ) |> select(Date, .mean) |> rename(ensemble = .mean)
+
+r_test <- test  |> 
+  inner_join(r_snaive, by = "Date") |>
+  inner_join(r_ets, by = "Date") |>
+  inner_join(r_reg_control, by = "Date") |>
+  inner_join(r_arimax, by = "Date") |>
+  inner_join(r_ensemble, by = "Date")
+
+r_test <- r_test |> mutate(
+  snaive = Rail_avg - snaive,
+  ets = Rail_avg - ets,
+  reg_control = Rail_avg - reg_control,
+  arimax = Rail_avg - arimax,
+  ensemble = Rail_avg - ensemble
+) |> select(Date, Rail_avg, snaive, ets, reg_control, arimax, ensemble)
+
+# append r_train and r_test
+residuals <- r_train |> bind_rows(r_test)
+
+# Plot all the residuals over time
+ggplot(residuals, aes(x = Date)) +
+  geom_line(aes(y = ets, color = "ets")) +
+  geom_line(aes(y = reg_control, color = "reg_control")) +
+  geom_line(aes(y = arimax, color = "arimax")) +
+  geom_line(aes(y = ensemble, color = "ensemble")) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(title = "Residuals of Models",
+       y = "Residuals",
+       x = "",
+       caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n U.S. Energy Information Administration, Petroleum & Other Liquids.") +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
+  ) +
+  guides(colour = guide_legend(title = ""))
+ggsave(here("./analysis/output/graphs/residuals.png"), width = 10, height = 6)
+  
+
+my_models |> select(ensemble) |> gg_tsresiduals() + 
+  labs(title = "Residuals of Ensemble Model", 
        x="")
-#ggsave(here("Model 1 Residuals.png"), width = 10, height = 6)
-
-my_models |> select(arima_simple) |> gg_tsresiduals() + 
-  labs(title = "Residuals of ARIMA Model", 
-       x="")
-#ggsave(here("Model 2 Residuals.png"), width = 10, height = 6)
-
-my_models |> select(arima_control) |> gg_tsresiduals()
-
-my_models |> select(reg_control) |> report()
-my_models |> select(arima_simple) |> tidy()
-my_models |> select(arima_control) |> tidy()
-
-
-
-# Plot the model predictions on the training data
-my_models |> fitted() |> autoplot()  + 
-  theme(legend.position="bottom") +
-  facet_grid(vars(.model), scales = "free_y") 
-
 
 # Plot the model predictions on the testing data
 my_forecasts |>
   autoplot(test, level = NULL) +
-  theme(legend.position = "bottom") +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    panel.border = element_rect(colour = "black", fill=NA, linewidth=1)
+  ) + 
   labs(
-    y = "Thousands",
-    title = "Forecasts of Australian Thefts",
+    y = "Average Daily Boardings (000s)",
+    title = "Forecasts of Average Daily Rail Boardings",
     x="",
-    caption = "Notes: Models are trained on data from Jan. 1995 to Dec. 2014.\nSource: fpp3 'nsw_offences' data, Australian Bureau of Statistics."
-  ) +
-  guides(colour = guide_legend(title = "Forecast"))
+    caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n U.S. Energy Information Administration, Petroleum & Other Liquids.") +
+  guides(colour = guide_legend(title = ""))
 ggsave(here("./analysis/output/graphs/forecasts.png"), width = 10, height = 6)
 
 
@@ -188,4 +242,6 @@ combined_accuracy <- rbind(is_accuracy, oos_accuracy) |> arrange(desc(.type), RM
 d <- as.matrix(mutate_if(
   combined_accuracy, is.numeric, ~round(., 2)
 ))
-stargazer(d, out = here("./analysis/output/graphs/Accuracy Table.txt"), type = "text")
+stargazer(d, out = here("./analysis/output/graphs/Accuracy Table.tex"), type = "latex")
+
+stargazer(d, type = "text")

@@ -1,0 +1,24 @@
+
+% Table created by stargazer v.5.2.3 by Marek Hlavac, Social Policy Institute. E-mail: marek.hlavac at gmail.com
+% Date and time: Mon, Mar 31, 2025 - 1:57:23 PM
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}} cccccccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+.model & .type & ME & RMSE & MAE & MPE & MAPE & MASE & RMSSE & ACF1 \\ 
+\hline \\[-1.8ex] 
+ensemble & Training &   1.65 & 12.62 &  9.14 &   0.42 &  5.47 & 0.10 & 0.14 & -0.02 \\ 
+ets & Training &   1.12 & 13.98 & 10.28 &  -1.02 &  7.59 & 0.12 & 0.15 & -0.01 \\ 
+reg\_control & Training &   0.00 & 14.09 & 11.58 &  -0.26 &  8.47 & 0.13 & 0.15 &  0.56 \\ 
+arimax & Training &   3.83 & 18.77 & 14.10 &   2.54 &  8.37 & 0.16 & 0.20 & -0.01 \\ 
+snaive & Training &  89.29 & 93.14 & 89.29 &  42.26 & 42.26 & 1.00 & 1.00 &  0.61 \\ 
+arimax & Test & -18.72 & 27.78 & 24.75 &  -5.71 &  7.23 &  &  &  0.09 \\ 
+snaive & Test &  31.35 & 34.72 & 31.35 &   8.63 &  8.63 &  &  & -0.13 \\ 
+ets & Test & -29.75 & 36.70 & 30.77 &  -8.82 &  9.08 &  &  &  0.17 \\ 
+ensemble & Test & -36.14 & 42.07 & 36.99 & -10.61 & 10.84 &  &  &  0.21 \\ 
+reg\_control & Test & -59.94 & 65.46 & 59.94 & -17.31 & 17.31 &  &  &  0.43 \\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
