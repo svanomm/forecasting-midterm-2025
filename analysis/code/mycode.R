@@ -237,3 +237,7 @@ d <- as.matrix(mutate_if(
 stargazer(d, out = here("./analysis/output/graphs/Accuracy Table.tex"), type = "latex")
 
 stargazer(d, type = "text")
+
+
+
+as.data.frame(my_forecasts) |> group_by(.model) |> summarise(avg = mean(.mean), sum=sum(Rail_tot))
