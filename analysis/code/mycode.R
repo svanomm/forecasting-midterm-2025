@@ -238,6 +238,5 @@ stargazer(d, out = here("./analysis/output/graphs/Accuracy Table.tex"), type = "
 
 stargazer(d, type = "text")
 
-
-
+# Summarize ridership forecasts vs total actuals
 as.data.frame(my_forecasts) |> group_by(.model) |> summarise(avg = mean(.mean), sum=sum(Rail_tot))
