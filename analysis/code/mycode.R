@@ -100,7 +100,8 @@ ggplot(data, aes(x = Date)) +
   ) +
   labs(title = "Average Daily Rail Boardings vs Gasoline Price",
        x = "",
-       caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n U.S. Energy Information Administration, Petroleum & Other Liquids.") +
+       caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n
+       U.S. Energy Information Administration, Petroleum & Other Liquids.") +
   theme_minimal() +
   theme(
     legend.position = "bottom",
@@ -195,7 +196,8 @@ ggplot(residuals, aes(x = Date)) +
   labs(title = "Residuals of Models",
        y = "Residuals",
        x = "",
-       caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n U.S. Energy Information Administration, Petroleum & Other Liquids.") +
+       caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n
+       U.S. Energy Information Administration, Petroleum & Other Liquids.") +
   theme_minimal() +
   theme(
     legend.position = "bottom",
@@ -221,7 +223,8 @@ my_forecasts |>
     y = "Average Daily Boardings (000s)",
     title = "Forecasts of Average Daily Rail Boardings",
     x="",
-    caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n U.S. Energy Information Administration, Petroleum & Other Liquids.") +
+    caption = "Sources: Washington Metropolitan Area Transit Authority, Daily Ridership Dashboards,\n
+    U.S. Energy Information Administration, Petroleum & Other Liquids.") +
   guides(colour = guide_legend(title = ""))
 ggsave(here("./analysis/output/graphs/forecasts.png"), width = 8, height = 5)
 
