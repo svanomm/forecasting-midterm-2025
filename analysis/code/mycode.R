@@ -135,14 +135,6 @@ knot2 <- yearmonth("2022 Jan")
 knot3 <- yearmonth("2023 Jan")
 knot4 <- yearmonth("2024 Jan")
 
- train |>
-  model(
-    snaive = SNAIVE(Rail_avg),
-    ets    = ETS(Rail_avg ~ trend("Ad") + season("A")),
-    reg_control = TSLM(Rail_avg ~ gas_price + season() + trend(knots = c(knot1,knot2,knot3,knot4))),
-    arimax = ARIMA(Rail_avg ~ gas_price)
-  ) |> glance()
-
 # Fit models
 my_models <- train |>
   model(
@@ -151,7 +143,7 @@ my_models <- train |>
     reg_control = TSLM(Rail_avg ~ gas_price + season() + trend(knots = c(knot1,knot2,knot3,knot4))),
     arimax = ARIMA(Rail_avg ~ gas_price)
     ) |>
-  mutate(ensemble = (ets+reg_control+arimax)/3)
+  mutate(ensemble = (snaive+ets+reg_control+arimax)/4)
 
 my_forecasts <- my_models |>
   forecast(new_data = test)
